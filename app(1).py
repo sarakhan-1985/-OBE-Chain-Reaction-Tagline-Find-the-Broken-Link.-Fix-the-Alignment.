@@ -228,47 +228,82 @@ else:
         st.warning("⏳ Waiting for group responses...")
         st.metric("Groups Submitted", "0 / 6")
     else:
-        rows = []
+        # Neutral live-response table: no correctness is shown yet.
+        neutral_rows = []
         for _, r in df.iterrows():
-            c = cases[r["group_name"]]
-            break_ok = r["broken_link"] == c["correct_break"]
-            fix_ok = r["repair"] == c["correct_fix"]
-
-            if break_ok and fix_ok:
-                result = "✅ Correct"
-            elif break_ok:
-                result = "🟡 Link correct; repair needs review"
-            else:
-                result = "❌ Review"
-
-            rows.append({
+            neutral_rows.append({
                 "Group": r["group_name"],
                 "Case": r["case_name"],
                 "Broken Link Selected": r["broken_link"],
-                "Repair Selected": r["repair"],
-                "Evaluator Check": result
+                "Repair Selected": r["repair"]
             })
 
-        results = pd.DataFrame(rows)
-        st.dataframe(results, use_container_width=True, hide_index=True)
+        neutral_results = pd.DataFrame(neutral_rows)
+        st.dataframe(neutral_results, use_container_width=True, hide_index=True)
 
-        correct = (results["Evaluator Check"] == "✅ Correct").sum()
-        col1, col2 = st.columns(2)
-        col1.metric("Groups Submitted", f"{len(results)} / 6")
-        col2.metric("Fully Correct", f"{correct} / {len(results)}")
+        st.metric("Groups Submitted", f"{len(neutral_results)} / 6")
 
-    st.markdown("---")
-    st.markdown("## 🔐 Facilitator Answer Key")
-    st.caption("Keep these closed until you are ready to discuss each group's case.")
+        st.markdown("### 💬 Discuss Before You Reveal")
+        st.caption(
+            "Use the responses above for class discussion. "
+            "No group has been marked correct or incorrect yet."
+        )
 
-    for group, c in cases.items():
-        with st.expander(f"{group} — {c['discipline']} {c['name']}"):
-            if c["correct_break"] == "✅ Nothing — the chain is aligned":
-                st.success("✅ THE CHAIN IS ALIGNED")
-            else:
-                st.error(f"💥 BROKEN LINK: {c['correct_break']}")
+        # Reveal state stays hidden until the facilitator deliberately clicks.
+        if "show_evaluation" not in st.session_state:
+            st.session_state.show_evaluation = False
 
-            st.markdown(f"""
+        if not st.session_state.show_evaluation:
+            if st.button("🔐 REVEAL EVALUATION", use_container_width=True):
+                st.session_state.show_evaluation = True
+                st.rerun()
+
+        if st.session_state.show_evaluation:
+            st.markdown("---")
+            st.markdown("## 🔓 Evaluation Revealed")
+
+            evaluated_rows = []
+            for _, r in df.iterrows():
+                c = cases[r["group_name"]]
+                break_ok = r["broken_link"] == c["correct_break"]
+                fix_ok = r["repair"] == c["correct_fix"]
+
+                if break_ok and fix_ok:
+                    result = "✅ Correct"
+                elif break_ok:
+                    result = "🟡 Link correct; repair needs review"
+                else:
+                    result = "❌ Review"
+
+                evaluated_rows.append({
+                    "Group": r["group_name"],
+                    "Broken Link Selected": r["broken_link"],
+                    "Repair Selected": r["repair"],
+                    "Evaluator Check": result
+                })
+
+            evaluated_results = pd.DataFrame(evaluated_rows)
+            st.dataframe(evaluated_results, use_container_width=True, hide_index=True)
+
+            correct = (evaluated_results["Evaluator Check"] == "✅ Correct").sum()
+            st.metric("Fully Correct", f"{correct} / {len(evaluated_results)}")
+
+            if st.button("🙈 HIDE EVALUATION AGAIN", use_container_width=True):
+                st.session_state.show_evaluation = False
+                st.rerun()
+
+            st.markdown("---")
+            st.markdown("## 🔐 Facilitator Answer Key")
+            st.caption("Open a group only when you are ready to explain its case.")
+
+            for group, c in cases.items():
+                with st.expander(f"{group} — {c['discipline']} {c['name']}"):
+                    if c["correct_break"] == "✅ Nothing — the chain is aligned":
+                        st.success("✅ THE CHAIN IS ALIGNED")
+                    else:
+                        st.error(f"💥 BROKEN LINK: {c['correct_break']}")
+
+                    st.markdown(f"""
 **Best repair:**  
 {c["correct_fix"]}
 
@@ -288,5 +323,6 @@ Each link should prepare for, measure, and reward the **same intended learning**
     if st.button("🗑️ CLEAR ALL RESPONSES"):
         cur.execute("DELETE FROM responses")
         conn.commit()
+        st.session_state.show_evaluation = False
         st.success("Responses cleared.")
         st.rerun()
