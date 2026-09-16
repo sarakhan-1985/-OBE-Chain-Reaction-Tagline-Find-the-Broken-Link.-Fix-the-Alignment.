@@ -121,7 +121,7 @@ st.markdown("""
 
 /* Cards */
 .obe-card {
-    height:185px;
+    height:200px;
     border-radius:17px;
     padding:15px 12px;
     text-align:center;
@@ -157,7 +157,7 @@ st.markdown("""
 }
 
 .card-text {
-    font-size:16px;
+    font-size:14px;
     line-height:1.35;
     color:#303541;
 }
